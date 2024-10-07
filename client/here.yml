@@ -1,0 +1,48 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main  # Trigger on push to main branch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '16'  # Adjust Node version as needed
+
+      - name: Install Client Dependencies
+        run: |
+          cd client
+          npm install
+
+      - name: Install Server Dependencies
+        run: |
+          cd server
+          npm install
+
+      - name: Run Tests
+        run: |
+          cd client
+          npm test -- --watchAll=false
+          cd ../server
+          npm test -- --watchAll=false
+
+      - name: Deploy to Local Server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+        run: |
+          echo "$SSH_PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
+          rsync -avz -e "ssh -i private_key.pem" ./server/ $SERVER_USER@$SERVER_IP:/path/to/your/server
+          rsync -avz -e "ssh -i private_key.pem" ./client/ $SERVER_USER@$SERVER_IP:/path/to/your/client
+          ssh -i private_key.pem $SERVER_USER@$SERVER_IP "cd /path/to/your/server && npm install && pm2 restart all"
